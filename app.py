@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for a professional assistant look
+# Custom CSS for styling
 st.markdown("""
     <style>
     .main {
@@ -27,7 +27,6 @@ st.markdown("""
 
 # Initialize Session State for users and data
 if "users" not in st.session_state:
-    # Default pre-configured accounts for testing each role
     st.session_state.users = {
         "profesor": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Profesor", "name": "Profesor Titular"},
         "alumno": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Alumno", "name": "Estudiante Ejemplo"},
@@ -40,18 +39,43 @@ if "logged_in" not in st.session_state:
     st.session_state.role = ""
     st.session_state.name = ""
 
+# Tasks dictionary per user username or global empty list by default
 if "tasks" not in st.session_state:
-    st.session_state.tasks = [
-        {"title": "Entrega de proyecto trimestral", "due": "2026-09-30", "status": "Pendiente", "assigned_by": "Profesor Titular"}
-    ]
+    st.session_state.tasks = {} # Format: {username: [{"title": ..., "due": ..., "status": ...}]}
 
 if "announcements" not in st.session_state:
     st.session_state.announcements = [
         {"author": "Profesor Titular", "text": "Bienvenidos al nuevo trimestre escolar. Consulten el calendario de tareas.", "date": "2026-09-16"}
     ]
 
+# Chat history storage per user
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = {}
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# Helper function to render a task creation form anywhere
+def render_task_creation_expander(user_key_suffix=""):
+    with st.expander("➕ Añadir nueva tarea"):
+        with st.form(key=f"task_form_{user_key_suffix}"):
+            t_title = st.text_input("Título de la tarea")
+            t_date = st.date_input("Fecha límite", key=f"date_{user_key_suffix}")
+            submitted = st.form_submit_button("Guardar Tarea")
+            if submitted:
+                if t_title:
+                    curr_user = st.session_state.username
+                    if curr_user not in st.session_state.tasks:
+                        st.session_state.tasks[curr_user] = []
+                    st.session_state.tasks[curr_user].append({
+                        "title": t_title,
+                        "due": str(t_date),
+                        "status": "Pendiente"
+                    })
+                    st.success("¡Tarea añadida con éxito!")
+                    st.rerun()
+                else:
+                    st.warning("Escribe un título para la tarea.")
 
 # --- AUTHENTICATION SCREEN ---
 if not st.session_state.logged_in:
@@ -91,7 +115,7 @@ if not st.session_state.logged_in:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Registrarse", type="secondary"):
                 if not reg_user or not reg_pass or not reg_name:
-                    st.warning("Por favor,complete todos los campos obligatorios.")
+                    st.warning("Por favor, complete todos los campos obligatorios.")
                 elif reg_user in st.session_state.users:
                     st.error("Este nombre de usuario ya está registrado.")
                 else:
@@ -108,7 +132,13 @@ else:
     st.sidebar.markdown(f"**Perfil:** `{st.session_state.role}`")
     st.sidebar.markdown("---")
     
-    menu = st.sidebar.radio("Navegación", ["🏠 Panel Principal", "📚 Tareas y Evaluaciones", "📢 Comunicados", "⚙️ Mi Cuenta"])
+    menu = st.sidebar.radio("Navegación", [
+        "🏠 Panel Principal", 
+        "📚 Tareas y Evaluaciones", 
+        "🤖 Hablar con Conchy AI", 
+        "📢 Comunicados", 
+        "⚙️ Mi Cuenta"
+    ])
     
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state.logged_in = False
@@ -117,59 +147,108 @@ else:
         st.session_state.name = ""
         st.rerun()
 
-    # Dashboard - Alumno
+    current_user = st.session_state.username
+    user_tasks = st.session_state.tasks.get(current_user, [])
+
+    # Dashboard - Panel Principal
     if menu == "🏠 Panel Principal":
         st.title(f"Panel de Control - {st.session_state.role}")
+        st.info("🤖 **Asistente Conchy:** Aquí tienes un resumen de tu actividad. Puedes agregar nuevas tareas en cualquier momento.")
         
-        if st.session_state.role == "Alumno":
-            st.info("🤖 **Asistente Conchy:** Tienes 1 tarea pendiente para las próximas semanas. Revisa el apartado correspondiente para mantenerte al día.")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📝 Tareas Próximas")
-                pending = [t for t in st.session_state.tasks if t["status"] != "Completada"]
-                for t in pending:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("📝 Tus Tareas Pendientes")
+            if user_tasks:
+                for idx, t in enumerate(user_tasks):
                     st.write(f"- **{t['title']}** (Vence: {t['due']})")
-            with col2:
-                st.subheader("📊 Resumen Académico")
-                st.metric("Asistencia registrada", "100%")
-                st.metric("Tareas completadas", "0 / 1")
+            else:
+                st.write("No hay tareas registradas actualmente.")
+        with col2:
+            st.subheader("📊 Resumen Rápido")
+            st.metric("Tareas totales creadas", len(user_tasks))
+            st.metric("Rol en Conchy", st.session_state.role)
 
-        elif st.session_state.role == "Profesor":
-            st.info("🤖 **Asistente Conchy (Panel Docente):** Gestión centralizada de alumnos y publicaciones.")
-            st.metric("Total de Alumnos en el sistema", len([u for u, d in st.session_state.users.items() if d["role"] == "Alumno"]))
-            
-            st.subheader("Publicar nueva tarea")
-            task_title = st.text_input("Título de la tarea")
-            task_date = st.date_input("Fecha límite de entrega")
-            if st.button("Guardar y Publicar"):
-                if task_title:
-                    st.session_state.tasks.append({
-                        "title": task_title,
-                        "due": str(task_date),
-                        "status": "Pendiente",
-                        "assigned_by": st.session_state.name
-                    })
-                    st.success("Tarea publicada correctamente.")
+        st.markdown("---")
+        render_task_creation_expander("panel_principal")
 
-        elif st.session_state.role == "Padre/madre":
-            st.info("🤖 **Asistente Conchy (Portal de Familias):** Información y seguimiento escolar.")
-            st.write("Consulte las calificaciones y avisos oficiales publicados por el centro docente.")
-
+    # Tareas y Evaluaciones
     elif menu == "📚 Tareas y Evaluaciones":
         st.title("📚 Gestión de Tareas")
-        if st.session_state.tasks:
-            df = pd.DataFrame(st.session_state.tasks)
+        st.write("Consulta y administra tus tareas pendientes.")
+        
+        if user_tasks:
+            df = pd.DataFrame(user_tasks)
             st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Todavía no has agregado ninguna tarea.")
 
+        st.markdown("---")
+        render_task_creation_expander("tareas_evaluaciones")
+
+    # Hablar con Conchy AI
+    elif menu == "🤖 Hablar con Conchy AI":
+        st.title("🤖 Chat con Conchy AI")
+        st.write("Hola, soy **Conchy**, tu asistente virtual inteligente. Puedo aconsejarte sobre cómo usar la plataforma, organizarte mejor y revisar la información de tu cuenta.")
+        
+        if current_user not in st.session_state.chat_history:
+            st.session_state.chat_history[current_user] = [
+                {"role": "assistant", "content": f"¡Hola {st.session_state.name}! Soy Conchy. Veo que tienes {len(user_tasks)} tareas registradas en tu cuenta con rol de {st.session_state.role}. ¿En qué te puedo ayudar hoy?"}
+            ]
+        
+        # Display chat messages
+        for message in st.session_state.chat_history[current_user]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+                
+        # Chat input
+        if prompt := st.chat_input("Pregúntale a Conchy sobre tus tareas, organización o uso de la web..."):
+            st.session_state.chat_history[current_user].append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+                
+            # Generate Conchy AI response based on context and user info
+            prompt_lower = prompt.lower()
+            if "tarea" in prompt_lower or "pendiente" in prompt_lower:
+                if user_tasks:
+                    task_titles = ", ".join([t['title'] for t in user_tasks])
+                    response_text = f"Revisando tu cuenta, veo que tienes las siguientes tareas: {task_titles}. ¡Te recomiendo organizarlas por fecha de entrega!"
+                else:
+                    response_text = f"He revisado tu cuenta ({st.session_state.name}) y veo que actualmente no tienes ninguna tarea registrada. ¡Puedes usar el formulario inferior para añadir alguna!"
+            elif "consejo" in prompt_lower or "organizar" in prompt_lower or "ayuda" in prompt_lower:
+                response_text = f"Como usuari@ con perfil de **{st.session_state.role}**, te sugiero revisar regularmente el panel principal y mantener al día tus registros para aprovechar al máximo Conchy."
+            else:
+                response_text = f"Entiendo perfectamente. Como tu asistente Conchy, estoy aquí para ayudarte con tu rol de {st.session_state.role}. ¿Te gustaría que te ayude a planificar tus próximos objetivos o añadir una tarea?"
+                
+            st.session_state.chat_history[current_user].append({"role": "assistant", "content": response_text})
+            with st.chat_message("assistant"):
+                st.markdown(response_text)
+
+        st.markdown("---")
+        render_task_creation_expander("chat_conchy")
+
+    # Comunicados
     elif menu == "📢 Comunicados":
-        st.title("📢 Tablón de Anuncios Oficiales")
-        for ann in st.session_state.announcements:
-            st.markdown(f"**{ann['author']}** — *{ann['date']}*\n\n{ann['text']}")
-            st.markdown("---")
+        st.title("📢 Tablón de Comunicados Oficiales")
+        
+        if st.session_state.announcements:
+            for ann in st.session_state.announcements:
+                st.markdown(f"**{ann['author']}** — *{ann['date']}*
 
+{ann['text']}")
+                st.markdown("---")
+        else:
+            st.info("No hay comunicados oficiales en este momento.")
+
+        st.markdown("---")
+        render_task_creation_expander("comunicados")
+
+    # Mi Cuenta
     elif menu == "⚙️ Mi Cuenta":
-        st.title("⚙️ Configuración")
+        st.title("⚙️ Configuración de Cuenta")
         st.write(f"**Nombre de usuario:** {st.session_state.username}")
         st.write(f"**Nombre completo:** {st.session_state.name}")
         st.write(f"**Rol asignado:** {st.session_state.role}")
+        st.write(f"**Total de tareas personales:** {len(user_tasks)}")
+
+        st.markdown("---")
+        render_task_creation_expander("mi_cuenta")
