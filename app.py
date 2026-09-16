@@ -5,32 +5,34 @@ from datetime import datetime
 
 # Page configuration
 st.set_page_config(
-    page_title="Conchi - Asistente Escolar",
-    page_icon="🤖",
+    page_title="Conchy - Asistente Escolar Inteligente",
+    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for styling the app
+# Custom CSS for a professional assistant look
 st.markdown("""
     <style>
     .main {
-        background-color: #f8f9fa;
+        background-color: #f4f6f9;
     }
     .stButton>button {
         width: 100%;
-        border-radius: 8px;
-        font-weight: bold;
-    }
-    .card {
-        padding: 20px;
-        border-radius: 10px;
-        background-color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        border-radius: 6px;
+        font-weight: 600;
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Initialize Session State for users and data
+if "users" not in st.session_state:
+    # Default pre-configured accounts for testing each role
+    st.session_state.users = {
+        "profesor": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Profesor", "name": "Profesor Titular"},
+        "alumno": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Alumno", "name": "Estudiante Ejemplo"},
+        "padre": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Padre/madre", "name": "Tutor Legal"}
+    }
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -39,17 +41,23 @@ if "logged_in" not in st.session_state:
     st.session_state.name = ""
 
 if "tasks" not in st.session_state:
-    st.session_state.tasks = 
-        {"title": "Entregar trabajo de matemáticas", "due": "2026-09-20", "status": "Pendiente", "assigned_by": "Prof. Propietario"},
-        {"title": "Revisar promesas de paz de Xavi", "due": "2026-09-25", "status": "En proceso", "assigned_by": "Juan"}
+    st.session_state.tasks = [
+        {"title": "Entrega de proyecto trimestral", "due": "2026-09-30", "status": "Pendiente", "assigned_by": "Profesor Titular"}
+    ]
+
+if "announcements" not in st.session_state:
+    st.session_state.announcements = [
+        {"author": "Profesor Titular", "text": "Bienvenidos al nuevo trimestre escolar. Consulten el calendario de tareas.", "date": "2026-09-16"}
+    ]
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Authentication Flow
+# --- AUTHENTICATION SCREEN ---
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center; color: #2c3e50;'>🤖 CONCHI: Tu Asistente Escolar Inteligente</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #7f8c8d;'>La plataforma definitiva para organizar el caos del aula, los exámenes...</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #1e3d59;'>🎓 CONCHY</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #438a5e; font-size: 1.1em;'>Tu asistente virtual inteligente para la gestión académica y escolar.</p>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -57,158 +65,111 @@ if not st.session_state.logged_in:
         tab_login, tab_register = st.tabs(["🔑 Iniciar Sesión", "📝 Crear Cuenta"])
         
         with tab_login:
-            st.subheader("Acceso a tu cuenta")
-            login_user = st.text_input("Nombre de usuario", key="login_user")
+            st.subheader("Acceso de Usuarios")
+            login_user = st.text_input("Usuario", key="login_user")
             login_pass = st.text_input("Contraseña", type="password", key="login_pass")
             
-            if st.button("Entrar", type="primary"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Iniciar Sesión", type="primary"):
                 if login_user in st.session_state.users and st.session_state.users[login_user]["password"] == hash_password(login_pass):
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
                     st.session_state.role = st.session_state.users[login_user]["role"]
                     st.session_state.name = st.session_state.users[login_user]["name"]
-                    st.success(f"¡Bienvenido de nuevo, {st.session_state.name}!")
+                    st.success(f"Bienvenido/a, {st.session_state.name}")
                     st.rerun()
                 else:
                     st.error("Usuario o contraseña incorrectos.")
                     
         with tab_register:
-            st.subheader("Regístrate en Conchi")
-            reg_user = st.text_input("Elige un nombre de usuario", key="reg_user")
-            reg_name = st.text_input("Tu Nombre Completo / Apodo", key="reg_name")
-            reg_pass = st.text_input("Elige una contraseña", type="password", key="reg_pass")
-            reg_role = st.selectbox("Tipo de cuenta", ["Alumno", "Profesor", "Padre/madre"], key="reg_role")
+            st.subheader("Registro de Nueva Cuenta")
+            reg_user = st.text_input("Nombre de usuario único", key="reg_user")
+            reg_name = st.text_input("Nombre y Apellidos", key="reg_name")
+            reg_pass = st.text_input("Contraseña", type="password", key="reg_pass")
+            reg_role = st.selectbox("Seleccione su tipo de cuenta", ["Alumno", "Profesor", "Padre/madre"], key="reg_role")
             
+            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Registrarse", type="secondary"):
                 if not reg_user or not reg_pass or not reg_name:
-                    st.warning("Por favor, rellena todos los campos.")
+                    st.warning("Por favor,complete todos los campos obligatorios.")
                 elif reg_user in st.session_state.users:
-                    st.error("El nombre de usuario ya existe. Elige otro.")
+                    st.error("Este nombre de usuario ya está registrado.")
                 else:
                     st.session_state.users[reg_user] = {
                         "password": hash_password(reg_pass),
                         "role": reg_role,
                         "name": reg_name
                     }
-                    st.success("¡Cuenta creada con éxito! Ya puedes iniciar sesión en la pestaña de al lado.")
+                    st.success("¡Cuenta registrada con éxito! Ya puede iniciar sesión en la pestaña contigua.")
 
 else:
-    # Sidebar navigation & User Info
-    st.sidebar.markdown(f"### 👋 Hola, {st.session_state.name}")
-    st.sidebar.markdown(f"**Rol:** `👤 {st.session_state.role}`")
+    # --- MAIN APPLICATION INTERFACE (POST-LOGIN) ---
+    st.sidebar.markdown(f"### 👤 {st.session_state.name}")
+    st.sidebar.markdown(f"**Perfil:** `{st.session_state.role}`")
     st.sidebar.markdown("---")
     
-    menu = st.sidebar.radio("Navegación", ["🏠 Panel Principal", "📚 Tareas y Exámenes", "📢 Tablón de la Clase", "⚙️ Ajustes de Cuenta"])
+    menu = st.sidebar.radio("Navegación", ["🏠 Panel Principal", "📚 Tareas y Evaluaciones", "📢 Comunicados", "⚙️ Mi Cuenta"])
     
-    if st.sidebar.button("Cerrar Sesión", type="primary"):
+    if st.sidebar.button("Cerrar Sesión"):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.role = ""
         st.session_state.name = ""
         st.rerun()
 
-    # --- PANEL PRINCIPAL ---
+    # Dashboard - Alumno
     if menu == "🏠 Panel Principal":
         st.title(f"Panel de Control - {st.session_state.role}")
         
-        # Role-based dashboard content
         if st.session_state.role == "Alumno":
-            st.info("💡 **Consejo de Conchi:** ¡Cuidado con el examen de matemáticas! Recuerda que Xavi prometió paz, pero más vale estudiar por si acaso.")
+            st.info("🤖 **Asistente Conchy:** Tienes 1 tarea pendiente para las próximas semanas. Revisa el apartado correspondiente para mantenerte al día.")
             
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("### 📝 Tus Tareas Pendientes")
+                st.subheader("📝 Tareas Próximas")
                 pending = [t for t in st.session_state.tasks if t["status"] != "Completada"]
-                if pending:
-                    for t in pending:
-                        st.markdown(f"- **{t['title']}** (Fecha límite: {t['due']})")
-                else:
-                    st.success("¡Estás al día con todo! Buen trabajo.")
+                for t in pending:
+                    st.write(f"- **{t['title']}** (Vence: {t['due']})")
             with col2:
-                st.markdown("### 🗳️ Estado del Aula")
-                st.markdown("- **Delegado actual:** Xavi 🤡")
-                st.markdown("- **Promesa principal:** Paz en clase y cero agobios.")
-                st.markdown("- **Alianza secreta:** Activa (Pacto mutuo).")
+                st.subheader("📊 Resumen Académico")
+                st.metric("Asistencia registrada", "100%")
+                st.metric("Tareas completadas", "0 / 1")
 
         elif st.session_state.role == "Profesor":
-            st.info("👨‍🏫 **Panel Docente:** Desde aquí puedes supervisar las actividades y lanzar avisos a los alumnos.")
+            st.info("🤖 **Asistente Conchy (Panel Docente):** Gestión centralizada de alumnos y publicaciones.")
+            st.metric("Total de Alumnos en el sistema", len([u for u, d in st.session_state.users.items() if d["role"] == "Alumno"]))
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Alumnos registrados", len([u for u, d in st.session_state.users.items() if d["role"] == "Alumno"]))
-            with col2:
-                st.metric("Tareas activas", len(st.session_state.tasks))
-                
-            st.subheader("Crear nueva tarea o aviso")
-            new_task_title = st.text_input("Título de la tarea / examen")
-            new_task_date = st.date_input("Fecha límite")
-            if st.button("Publicar Tarea"):
-                if new_task_title:
+            st.subheader("Publicar nueva tarea")
+            task_title = st.text_input("Título de la tarea")
+            task_date = st.date_input("Fecha límite de entrega")
+            if st.button("Guardar y Publicar"):
+                if task_title:
                     st.session_state.tasks.append({
-                        "title": new_task_title,
-                        "due": str(new_task_date),
+                        "title": task_title,
+                        "due": str(task_date),
                         "status": "Pendiente",
                         "assigned_by": st.session_state.name
                     })
-                    st.success("¡Tarea publicada correctamente para todos los alumnos!")
+                    st.success("Tarea publicada correctamente.")
 
         elif st.session_state.role == "Padre/madre":
-            st.info("👪 **Portal Familiar:** Seguimiento del rendimiento y avisos escolares.")
-            st.subheader("Resumen de actividad del estudiante")
-            st.markdown("- **Estado general:** Excelente comportamiento y colaboración en clase.")
-            st.markdown("- **Próximas entregas:** Consulta la pestaña de tareas para ver los plazos.")
+            st.info("🤖 **Asistente Conchy (Portal de Familias):** Información y seguimiento escolar.")
+            st.write("Consulte las calificaciones y avisos oficiales publicados por el centro docente.")
 
-    # --- TAREAS Y EXÁMENES ---
-    elif menu == "📚 Tareas y Exámenes":
-        st.title("📚 Gestión de Tareas y Exámenes")
-        
-        # Display tasks table
+    elif menu == "📚 Tareas y Evaluaciones":
+        st.title("📚 Gestión de Tareas")
         if st.session_state.tasks:
-            df_tasks = pd.DataFrame(st.session_state.tasks)
-            st.dataframe(df_tasks, use_container_width=True)
-        else:
-            st.write("No hay tareas registradas por el momento.")
-            
-        if st.session_state.role in ["Profesor", "Alumno"]:
-            st.subheader("Añadir nueva tarea rápida")
-            custom_task = st.text_input("Descripción de la tarea")
-            custom_date = st.date_input("Fecha de entrega", key="custom_date")
-            if st.button("Añadir Tarea"):
-                if custom_task:
-                    st.session_state.tasks.append({
-                        "title": custom_task,
-                        "due": str(custom_date),
-                        "status": "Pendiente",
-                        "assigned_by": st.session_state.name
-                    })
-                    st.success("¡Añadido con éxito!")
-                    st.rerun()
+            df = pd.DataFrame(st.session_state.tasks)
+            st.dataframe(df, use_container_width=True)
 
-    # --- TABLÓN DE LA CLASE ---
-    elif menu == "📢 Tablón de la Clase":
-        st.title("📢 Tablón de Anuncios y Salseo Escolar")
-        st.write("El espacio oficial (y no tan oficial) para enterarte de lo que se cuece en clase.")
-        
+    elif menu == "📢 Comunicados":
+        st.title("📢 Tablón de Anuncios Oficiales")
         for ann in st.session_state.announcements:
-            st.markdown(f"> **{ann['author']}** *({ann['date']})*:\n> {ann['text']}")
+            st.markdown(f"**{ann['author']}** — *{ann['date']}*\n\n{ann['text']}")
             st.markdown("---")
-            
-        st.subheader("Publicar un aviso en el tablón")
-        new_ann = st.text_area("Escribe tu mensaje...")
-        if st.button("Publicar en el tablón"):
-            if new_ann:
-                st.session_state.announcements.insert(0, {
-                    "author": st.session_state.name,
-                    "text": new_ann,
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-                })
-                st.success("¡Mensaje publicado!")
-                st.rerun()
 
-    # --- AJUSTES DE CUENTA ---
-    elif menu == "⚙️ Ajustes de Cuenta":
-        st.title("⚙️ Configuración de la Cuenta")
-        st.write(f"**Usuario:** `{st.session_state.username}`")
-        st.write(f"**Nombre:** {st.session_state.name}")
-        st.write(f"**Rol:** {st.session_state.role}")
-        st.warning("Próximamente podrás cambiar tu contraseña y personalizar tu avatar de Conchi.")
+    elif menu == "⚙️ Mi Cuenta":
+        st.title("⚙️ Configuración")
+        st.write(f"**Nombre de usuario:** {st.session_state.username}")
+        st.write(f"**Nombre completo:** {st.session_state.name}")
+        st.write(f"**Rol asignado:** {st.session_state.role}")
