@@ -32,15 +32,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State for users and data if not present
-if "users" not in st.session_state:
-    # Pre-populate with a demo user for each role
-    st.session_state.users = {
-        "admin_prof": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Profesor", "name": "Prof. Propietario"},
-        "alumno_juan": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Alumno", "name": "Juan (Delegado en potencia)"},
-        "padre_facundo": {"password": hashlib.sha256("1234".encode()).hexdigest(), "role": "Padre/madre", "name": "Tutor de Facundo"}
-    }
-
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
@@ -51,12 +42,6 @@ if "tasks" not in st.session_state:
     st.session_state.tasks = [
         {"title": "Entregar trabajo de matemáticas", "due": "2026-09-20", "status": "Pendiente", "assigned_by": "Prof. Propietario"},
         {"title": "Revisar promesas de paz de Xavi", "due": "2026-09-25", "status": "En proceso", "assigned_by": "Juan"}
-    ]
-
-if "announcements" not in st.session_state:
-    st.session_state.announcements = [
-        {"author": "Xavi (Delegado)", "text": "Prometo paz absoluta en clase y cero exámenes sorpresa (confiad en mí).", "date": "2026-09-16"}
-    ]
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -64,7 +49,7 @@ def hash_password(password):
 # Authentication Flow
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align: center; color: #2c3e50;'>🤖 CONCHI: Tu Asistente Escolar Inteligente</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #7f8c8d;'>La plataforma definitiva para organizar el caos del aula, los exámenes y... las promesas de Xavi.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #7f8c8d;'>La plataforma definitiva para organizar el caos del aula, los exámenes...</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
