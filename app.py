@@ -39,7 +39,7 @@ if "logged_in" not in st.session_state:
     st.session_state.name = ""
 
 if "tasks" not in st.session_state:
-    st.session_state.tasks = [
+    st.session_state.tasks = 
         {"title": "Entregar trabajo de matemáticas", "due": "2026-09-20", "status": "Pendiente", "assigned_by": "Prof. Propietario"},
         {"title": "Revisar promesas de paz de Xavi", "due": "2026-09-25", "status": "En proceso", "assigned_by": "Juan"}
 
