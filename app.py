@@ -232,7 +232,7 @@ else:
         
         if st.session_state.announcements:
             for ann in st.session_state.announcements:
-                st.markdown(f"**{ann['author']}** — *{ann['date']}*
+                st.markdown("**{ann['author']}** — *{ann['date']}*
 
 {ann['text']}")
                 st.markdown("---")
