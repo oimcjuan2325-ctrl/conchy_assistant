@@ -31,7 +31,6 @@ st.markdown("""
 def init_db():
     conn = sqlite3.connect('conchy_database.db', check_same_thread=False)
     cursor = conn.cursor()
-    # Tabla de usuarios
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
@@ -40,14 +39,14 @@ def init_db():
             name TEXT NOT NULL
         )
     ''')
-    # Tabla de tareas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             title TEXT NOT NULL,
             due TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            grade REAL DEFAULT NULL
         )
     ''')
     conn.commit()
@@ -56,7 +55,7 @@ def init_db():
 conn = init_db()
 cursor = conn.cursor()
 
-# Insertar un usuario por defecto ("alumno" / "1234") si la tabla está vacía
+# Usuario por defecto si está vacía
 cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
     default_pass = hashlib.sha256("1234".encode()).hexdigest()
@@ -74,7 +73,7 @@ if GOOGLE_API_KEY:
     except Exception as e:
         st.sidebar.error(f"Error al inicializar el cliente de IA: {e}")
 
-# Inicialización segura de Session State para sesión de usuario
+# Inicialización de Session State
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
@@ -87,7 +86,7 @@ if "chat_history" not in st.session_state:
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Helper function to add tasks with database persistence
+# Helper function to add tasks
 def render_task_creation_expander(user_key_suffix=""):
     with st.expander("➕ Añadir nueva tarea o evaluación"):
         with st.form(key=f"task_form_{user_key_suffix}"):
@@ -97,8 +96,8 @@ def render_task_creation_expander(user_key_suffix=""):
             if submitted:
                 if t_title:
                     curr_user = st.session_state.username
-                    cursor.execute("INSERT INTO tasks (username, title, due, status) VALUES (?, ?, ?, ?)",
-                                   (curr_user, t_title, str(t_date), "Pendiente"))
+                    cursor.execute("INSERT INTO tasks (username, title, due, status, grade) VALUES (?, ?, ?, ?, ?)",
+                                   (curr_user, t_title, str(t_date), "Pendiente", None))
                     conn.commit()
                     st.success("¡Añadido y guardado con éxito!")
                     st.rerun()
@@ -183,19 +182,83 @@ else:
 
     current_user = st.session_state.username
     
-    # Cargar tareas del usuario directamente desde la base de datos persistente
-    cursor.execute("SELECT title, due, status FROM tasks WHERE username = ?", (current_user,))
+    # Cargar tareas con ID desde la base de datos
+    cursor.execute("SELECT id, title, due, status, grade FROM tasks WHERE username = ?", (current_user,))
     db_tasks = cursor.fetchall()
-    user_tasks = [{"title": row[0], "due": row[1], "status": row[2]} for row in db_tasks]
+    user_tasks = [{"id": row[0], "title": row[1], "due": row[2], "status": row[3], "grade": row[4]} for row in db_tasks]
 
     # 1. Tareas y evaluaciones
     if menu == "📚 Tareas y evaluaciones":
         st.title("📚 Tareas y Evaluaciones")
-        st.write("Gestiona y consulta tus próximas entregas y exámenes de forma permanente.")
+        st.write("Gestiona, evalúa y consulta tus entregas de forma permanente.")
         
         if user_tasks:
-            df = pd.DataFrame(user_tasks)
-            st.dataframe(df, use_container_width=True)
+            # Mostrar tabla informativa
+            df_display = pd.DataFrame([{
+                "ID": t["id"],
+                "Título": t["title"],
+                "Fecha Vencimiento": t["due"],
+                "Estado": t["status"],
+                "Nota": t["grade"] if t["grade"] is not None else "Sin calificar"
+            } for t in user_tasks])
+            st.dataframe(df_display, use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("🛠️ Gestión de Registros (Notas y Borrado)")
+            
+            # Selector para gestionar tarea individual
+            task_options = {f"{t['title']} (Vence: {t['due']})": t['id'] for t in user_tasks}
+            selected_task_label = st.selectbox("Selecciona una tarea o examen para actualizar o borrar:", list(task_options.keys()))
+            selected_task_id = task_options[selected_task_label]
+            
+            # Buscar tarea seleccionada
+            current_t = next((t for t in user_tasks if t['id'] == selected_task_id), None)
+            
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                with st.form(key=f"grade_form_{selected_task_id}"):
+                    new_grade = st.number_input("Poner o actualizar nota (0 - 10):", min_value=0.0, max_value=10.0, step=0.1, value=float(current_t['grade']) if current_t['grade'] is not None else 5.0)
+                    submit_grade = st.form_submit_button("Guardar Nota")
+                    if submit_grade:
+                        cursor.execute("UPDATE tasks SET grade = ?, status = 'Completado' WHERE id = ?", (new_grade, selected_task_id))
+                        conn.commit()
+                        st.success("¡Nota guardada con éxito!")
+                        st.rerun()
+            with col_g2:
+                st.write("")
+                st.write("")
+                if st.button("🗑️ Borrar esta tarea o examen", type="secondary"):
+                    cursor.execute("DELETE FROM tasks WHERE id = ?", (selected_task_id,))
+                    conn.commit()
+                    st.success("¡Registro borrado correctamente!")
+                    st.rerun()
+
+            # --- ESTADÍSTICAS BASADAS EN LA MEDIA DE ESPAÑA ---
+            st.markdown("---")
+            st.subheader("📈 Estadísticas Académicas vs. Media de España")
+            
+            # Calcular nota media del alumno (solo tareas con nota asignada)
+            notas_validas = [t['grade'] for t in user_tasks if t['grade'] is not None]
+            media_alumno = sum(notas_valids) / len(notas_valids) if notas_valids else 0.0
+            media_espana = 6.2  # Referencia media estimada estándar en España
+            
+            col_est1, col_est2, col_est3 = st.columns(3)
+            with col_est1:
+                st.metric("Tu Nota Media", f"{media_alumno:.2f}" if notas_valids else "Sin notas")
+            with col_est2:
+                st.metric("Media de Referencia en España", f"{media_espana} / 10")
+            with col_est3:
+                diferencia = media_alumno - media_espana
+                st.metric("Diferencia", f"{diferencia:+.2f} pts" if notas_valids else "N/D", delta_color="normal" if notas_valids else "off")
+            
+            if notas_valids:
+                if media_alumno >= media_espana:
+                    st.success("🌟 ¡Enhorabuena! Tu rendimiento medio se encuentra por encima de la media de referencia estimada en España.")
+                else:
+                    st.info("💪 ¡Sigue esforzándote! Estás un poco por debajo de la media estándar; Conchy IA puede ayudarte a preparar tus próximos exámenes.")
+            else:
+                st.warning("⚠️ Asigna una nota numérica a tus tareas o exámenes calificados para ver la comparativa estadística completa.")
+
         else:
             st.info("No has agregado ninguna tarea o evaluación todavía.")
 
@@ -227,7 +290,7 @@ else:
                 try:
                     contexto_sistema = (
                         f"Eres Conchy, una asistente escolar virtual inteligente y amable para el estudiante {st.session_state.name}. "
-                        f"Tareas guardadas del alumno: {user_tasks}. "
+                        f"Tareas y notas guardadas del alumno: {user_tasks}. "
                         "Ayúdale a organizarse, resolver dudas de estudio y motivarle."
                     )
                     
@@ -258,7 +321,7 @@ else:
 
         st.markdown("---")
         st.subheader("Estado de la persistencia y la IA")
-        st.success("💾 Base de datos SQLite activa: Todas las cuentas y tareas se guardan de forma permanente.")
+        st.success("💾 Base de datos SQLite activa: Todas las cuentas, notas y tareas se guardan de forma permanente.")
         if client:
             st.success("🔌 Conectado correctamente con el modelo `gemini-3.6-flash`.")
         else:
